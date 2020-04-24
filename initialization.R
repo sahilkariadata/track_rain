@@ -2,7 +2,9 @@ library('Matrix')
 library(spatstat)
 library(imager)
 library(rsvg)
+#################################### IMAGE-MATRIX CONVERSION ####################################
 
+# CONVERT IMAGES FROM A FUNCTION TO MATRICES AND STORES THEM IN AN ARRAY -> rain_data
 img_to_matr = function(directory) {
   image_list <- list.files(path = directory, pattern = "*.png", full.names = TRUE) #loads images
   l <- length(image_list)
@@ -27,69 +29,7 @@ img_to_matr = function(directory) {
   return(rain_data)
 }
 
-ex_search = function(steps,upper_bx,lower_bx,upper_by,lower_by,x0,x1) {
-  x1 = Matrix(as.vector((x1[lower_by:upper_by,lower_bx:upper_bx])),sparse = TRUE)
-  x0 = Matrix(as.vector((x0[(lower_by-steps[2]):(upper_by-steps[2]),(lower_bx-steps[1]):(upper_bx-steps[1])])),sparse = TRUE)
-  S = as.numeric(crossprod(x1 - x0))
-  return(S)
-}
-
-err_map <- function(x0,x1,xbounds,ybounds,k,cond) {
-  
-   if (cond == TRUE) {
-     x1 = log2(x1) #so all pixels have a fairer weight
-     x0 = log2(x0)
-     x1[x1 == "-Inf"] <- -7  #computing -infinity is difficult so I compute -7 at the zeros instead
-     x0[x0 == "-Inf"] <- -7
-   }
-
-  upper_bx = xbounds[2]
-  lower_bx = xbounds[1]
-  upper_by = ybounds[2]
-  lower_by = ybounds[1]
-  dx = 3.774 #km
-  dy = 2.886 # initializing all variables
-  v_max = 140 #max speed of clouds in km/h (relevant in prediction)
-  t_dist = k/4   #image-spaced advect (advection between k images(15 min intervals))
-  maxsteps_x = floor(t_dist*v_max/dx)
-  maxsteps_y = floor(t_dist*v_max/dy)
-  xaxis = seq(-maxsteps_x*dx/t_dist,maxsteps_x*dx/t_dist,by=dx/t_dist)
-  yaxis = seq(-maxsteps_y*dy/t_dist,+maxsteps_y*dy/t_dist,by=dy/t_dist)
-  
-  errormap = matrix(0, ncol = 2*maxsteps_x + 1, nrow = 2*maxsteps_y + 1)
-  for (i in -maxsteps_x:maxsteps_x) {
-    for (j in -maxsteps_y:maxsteps_y) {
-      errormap[j+maxsteps_y+1,i+maxsteps_x+1] = ex_search(c(i,j),upper_bx,lower_bx,upper_by,lower_by,x0,x1)
-    }
-  }
-  return(list(map = errormap, xaxis = xaxis, yaxis = yaxis))
-}
-
-matrixtoimg <- function(new) {
-  library(spatstat)
-  new = as.matrix(new)
-  
-  
-  bl = readRDS("templatenan.rds") #keeps the template
-  new[new == "NaN"] <- 0
-  new[bl] <- "#C7BFC180"
-  new[new == "NaN"] <- "#C7BFC180"
-  
-  new[new<0.01] <- "#00000000"
-  new[0.01<=new & new<0.5] <- "#0000FEFF"
-  new[0.5<=new & new<1] <- "#128DDFFF"
-  new[1<=new & new<2] <- "#7F7F00FF"
-  new[2<=new & new<4] <- "#FECB00FF"
-  new[4<=new & new<8] <- "#FE9800FF"
-  new[8<=new & new<16] <- "#FE0000FF"
-  new[16<=new & new<32] <- "#FE00FEFF"
-  new[32<=new] <- "#E5FEFEFF"
-  new[bl] <- "#C7BFC180"
-  l = ncol(new)
-  new = new[l:1,]
-  plot(im(new),main="")
-}
-
+# CONVERTS MATRICES TO RADAR IMAGES USING SET INTERVALS AND PLOTS THE IMAGE
 matr_to_img <- function(x) {
   new = as.matrix(x)
   new[new == "NaN"] <- 0
@@ -107,6 +47,7 @@ matr_to_img <- function(x) {
   plot(im(new),main="")
 }
 
+# CONVERTS THE MATRIX TO AN IMAGE AND DRAWS A CUTOUT LOCATION FOLLOWED BY A PLOT
 cutoutdisp <- function(x,xbounds,ybounds) {
   library(spatstat)
   new = as.matrix(x)
@@ -133,6 +74,7 @@ cutoutdisp <- function(x,xbounds,ybounds) {
   rasterImage(img,0,0,500,500)
 }
 
+# CONVERTS A MATRIX TO A RADAR IMAGE USING SET INTERVALS AND RETURNS THE IMAGE
 mtisto = function(x) {
   new = as.matrix(x)
   new[new == "NaN"] <- 0
@@ -150,6 +92,9 @@ mtisto = function(x) {
   return(new)
 }
 
+#################################### ADVECTION MODELS ####################################
+
+# DETERMINISTIC MODEL - PROJECTS A PRECIPITATION FIELD x WITH VELOCITY vx AND vy FOR 0.25*k HOURS
 project <- function(x,k,vx,vy) {
   
   #### PARAMETERS ####
@@ -219,7 +164,8 @@ project <- function(x,k,vx,vy) {
   u = matrix(u, nrow=500, ncol=500, byrow = TRUE)
   return(u)
 }
-  
+
+# PROBABILISITC MODEL - PROJECTS A PRECIPITATION FIELD x WITH VELOCITY vx AND vy FOR 0.25*k HOURS AND ADDS FIELD OF IID NOISE    
 project_w_noise <- function(x,k,vx,vy,vari) {
   
   dx = 3.774 #km
@@ -294,79 +240,8 @@ project_w_noise <- function(x,k,vx,vy,vari) {
   u[u<0] = 0
   return(u)
 }  
-  
-se <-function(a,di) {
-  # Used in bayesian inference to find grid location from unique vector location
-  tauloc = floor((a-1)/(di[1]*di[2])) + 1
-  r = mod(a-1,di[1]*di[2])
-  vxloc = floor((r)/di[1]) + 1
-  vyloc = mod(r,di[1]) + 1
-  return(c(vxloc,vyloc,tauloc))
-}
 
-logscore <- function(pred,actual) {
-  predsds = apply(pred,1,sd)
-  predmeans = rowMeans(pred) #compares a disribution of mappings with a point estimate mapping to get the log score
-  logsc = dnorm(actual,mean = predmeans, sd = predsds, log = TRUE)
-  return(sum(logsc))
-}
-
-err_score <- function(pred,actual) {
-  #pred = reassign(pred)
-  #actual = reassign(actual)
-  pred = as.vector(pred)
-  actual = as.vector(actual)
-  return(sum(crossprod(pred-actual)))
-}
-
-lse <- function(x0,x1,xbounds,ybounds,k,cond) {
-  #least squares estimation
-  e = err_map(x0,x1,xbounds,ybounds,k,cond)
-  loc = which(e$map == min(e$map), arr.ind=TRUE) #finds location of minimum in heat map
-  vx = e$xaxis[loc[2]]
-  vy = e$yaxis[loc[1]]
-  variance = e$map[loc]/((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))
-  return(c(vx,vy,variance))
-}
-
-llgrid <- function(x1,x0,k,xbounds,ybounds,taus) {
-  #retrieves likelihood function/grid
-  v_max = 140
-  errormap =  err_map(x0,x1,xbounds,ybounds,k,FALSE)
-  d = dim(errormap$map)
-  L = array(rep(NaN, d[1]*d[2]*length(taus)), c(d[1], d[2], length(taus))) #initializing
-  for (i in 1:length(taus)) {
-    #L[,,i] = -((d[1]*d[2])/2)*log(2*pi*exp(taus[i])) - (exp(-taus[i])/2)*errormap$map #log-likelihood function
-    L[,,i] = -(((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))/2)*log(2*pi*exp(taus[i])) - (exp(-taus[i])/2)*errormap$map 
-  }
-  return(list(Llmatrix = L, vxs = errormap$xaxis, vys = errormap$yaxis))
-}
-
-bayesinf = function(x1,x0,k,xbounds,ybounds,num,taus) {
-  out = llgrid(x1,x0,k,xbounds,ybounds,taus)
-  L = out$Llmatrix
-  llvector = as.vector(L) #changes y then x then z
-  uniqueno = seq(1,length(llvector),1)
-  llvector = llvector - max(llvector)
-  llvector = exp(llvector)
-  a = sample(uniqueno,num,prob=llvector, replace = TRUE)
-  di = dim(L)
-  total = ((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))
-  
-  paras = matrix(0, nrow=num,ncol=3)
-  for (i in 1:num) {
-    loc = se(a[i],di) #turns uniqueno into grid locations in llmatrix
-    vxloc = loc[1]
-    vyloc = loc[2]
-    tauloc = loc[3]
-    
-    vari = exp(taus[tauloc])
-    paras[i,] = c(out$vxs[vxloc],out$vys[vyloc],vari)
-  }
-  colnames(paras) <- c("Vx","Vy","Variance")
-  return(paras)
-}
-
+# PROBABILISITC MODEL - PROJECTS A PRECIPITATION FIELD x WITH VELOCITY vx AND vy FOR 0.25*k HOURS AND ADDS FIELD OF SPATIALLY-CORRELATED NOISE         
 project_w_scnoise <- function(x,k,vx,vy,vari) {
   
   dx = 3.774 #km
@@ -450,6 +325,100 @@ project_w_scnoise <- function(x,k,vx,vy,vari) {
   return(u)
 }
 
+#################################### PARAMETER ESTIMATION TOOLS ####################################
+
+# SHIFTS PRECIPITATION FIELD x0 AND CALULATES SUM OF SQUARED RESIDUALS BETWEEN x0 AND x1
+ex_search = function(steps,upper_bx,lower_bx,upper_by,lower_by,x0,x1) {
+  x1 = Matrix(as.vector((x1[lower_by:upper_by,lower_bx:upper_bx])),sparse = TRUE)
+  x0 = Matrix(as.vector((x0[(lower_by-steps[2]):(upper_by-steps[2]),(lower_bx-steps[1]):(upper_bx-steps[1])])),sparse = TRUE)
+  S = as.numeric(crossprod(x1 - x0))
+  return(S)
+}
+
+# PRODUCES ERROR HEATMAP OF ADVECTING PRECIPITATION FIELD WITH VARIOUS VELOCITIES vx AND vy.
+err_map <- function(x0,x1,xbounds,ybounds,k,cond) {
+  
+  if (cond == TRUE) {
+    x1 = log2(x1) #so all pixels have a fairer weight
+    x0 = log2(x0)
+    x1[x1 == "-Inf"] <- -7  #computing -infinity is difficult so I compute -7 at the zeros instead
+    x0[x0 == "-Inf"] <- -7
+  }
+  
+  upper_bx = xbounds[2]
+  lower_bx = xbounds[1]
+  upper_by = ybounds[2]
+  lower_by = ybounds[1]
+  dx = 3.774 #km
+  dy = 2.886 # initializing all variables
+  v_max = 140 #max speed of clouds in km/h (relevant in prediction)
+  t_dist = k/4   #image-spaced advect (advection between k images(15 min intervals))
+  maxsteps_x = floor(t_dist*v_max/dx)
+  maxsteps_y = floor(t_dist*v_max/dy)
+  xaxis = seq(-maxsteps_x*dx/t_dist,maxsteps_x*dx/t_dist,by=dx/t_dist)
+  yaxis = seq(-maxsteps_y*dy/t_dist,+maxsteps_y*dy/t_dist,by=dy/t_dist)
+  
+  errormap = matrix(0, ncol = 2*maxsteps_x + 1, nrow = 2*maxsteps_y + 1)
+  for (i in -maxsteps_x:maxsteps_x) {
+    for (j in -maxsteps_y:maxsteps_y) {
+      errormap[j+maxsteps_y+1,i+maxsteps_x+1] = ex_search(c(i,j),upper_bx,lower_bx,upper_by,lower_by,x0,x1)
+    }
+  }
+  return(list(map = errormap, xaxis = xaxis, yaxis = yaxis))
+}
+
+# PERFORMS LEAST SQUARES ESTIMATION BY FINDING LOCATION OF TROUGH OF ERROR HEATMAP
+lse <- function(x0,x1,xbounds,ybounds,k,cond) {
+  #least squares estimation
+  e = err_map(x0,x1,xbounds,ybounds,k,cond)
+  loc = which(e$map == min(e$map), arr.ind=TRUE) #finds location of minimum in heat map
+  vx = e$xaxis[loc[2]]
+  vy = e$yaxis[loc[1]]
+  variance = e$map[loc]/((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))
+  return(c(vx,vy,variance))
+}
+
+# PRODUCES LIKELIHOOD GRID OF PARAMETER SETS
+llgrid <- function(x1,x0,k,xbounds,ybounds,taus) {
+  #retrieves likelihood function/grid
+  v_max = 140
+  errormap =  err_map(x0,x1,xbounds,ybounds,k,FALSE)
+  d = dim(errormap$map)
+  L = array(rep(NaN, d[1]*d[2]*length(taus)), c(d[1], d[2], length(taus))) #initializing
+  for (i in 1:length(taus)) {
+    #L[,,i] = -((d[1]*d[2])/2)*log(2*pi*exp(taus[i])) - (exp(-taus[i])/2)*errormap$map #log-likelihood function
+    L[,,i] = -(((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))/2)*log(2*pi*exp(taus[i])) - (exp(-taus[i])/2)*errormap$map 
+  }
+  return(list(Llmatrix = L, vxs = errormap$xaxis, vys = errormap$yaxis))
+}
+
+# SAMPLES PARAMETER SETS FROM WEIGHTS PROPORTIONAL TO LIKELIHOOD GRID
+bayesinf = function(x1,x0,k,xbounds,ybounds,num,taus) {
+  out = llgrid(x1,x0,k,xbounds,ybounds,taus)
+  L = out$Llmatrix
+  llvector = as.vector(L) #changes y then x then z
+  uniqueno = seq(1,length(llvector),1)
+  llvector = llvector - max(llvector)
+  llvector = exp(llvector)
+  a = sample(uniqueno,num,prob=llvector, replace = TRUE)
+  di = dim(L)
+  total = ((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1))
+  
+  paras = matrix(0, nrow=num,ncol=3)
+  for (i in 1:num) {
+    loc = se(a[i],di) #turns uniqueno into grid locations in llmatrix
+    vxloc = loc[1]
+    vyloc = loc[2]
+    tauloc = loc[3]
+    
+    vari = exp(taus[tauloc])
+    paras[i,] = c(out$vxs[vxloc],out$vys[vyloc],vari)
+  }
+  colnames(paras) <- c("Vx","Vy","Variance")
+  return(paras)
+}
+
+# CALCULATES THE APPROXIMATIONG OF THE POSTERIOR PREDICTIVE MEAN FOR x2
 ppm = function(paras, x1, xbounds, ybounds, k) {
   m = length(paras[,1])
   ppmvec = matrix(0,nrow = (xbounds[2]-xbounds[1]+1)*(ybounds[2]-ybounds[1]+1))
@@ -462,9 +431,23 @@ ppm = function(paras, x1, xbounds, ybounds, k) {
   return(ppmvec)
 }
 
+# USED IN bayesinf() TO FIND GRID LOCATION FROM UNIQUE VECTOR LOCATION  
+se <-function(a,di) {
+  tauloc = floor((a-1)/(di[1]*di[2])) + 1
+  r = mod(a-1,di[1]*di[2])
+  vxloc = floor((r)/di[1]) + 1
+  vyloc = mod(r,di[1]) + 1
+  return(c(vxloc,vyloc,tauloc))
+}
 
+#################################### PERFORMANCE INDICATORS ####################################
 
-
+# RETRIEVES THE SUM OF SQUARED RESIDUALS AS A MEASURE OF NUMERICAL STRENGTH
+err_score <- function(pred,actual) {
+  pred = as.vector(pred)
+  actual = as.vector(actual)
+  return(sum(crossprod(pred-actual)))
+}
 
 
 
