@@ -1,45 +1,69 @@
-xbounds =  c(101,150)
-ybounds =  c(321,370)   
-start = 1
+
+
+
+# EXAMPLE 1
+####################################
+rain_data = img_to_matr("data/stormciara1")
+xbounds =  c(121,170)
+ybounds =  c(101,150)    
+start = 15
+####################################
+
+# # EXAMPLE 2
+# ####################################
+# rain_data = img_to_matr("data/exampledata")
+# xbounds =  c(301,350) #c(101,150)
+# ybounds =  c(101,150)  
+# start = 1
+# ####################################
+
+# # EXAMPLE 3
+# ####################################
+# rain_data = img_to_matr("data/stormciara1")
+# xbounds =  c(101,150)
+# ybounds =  c(321,370)    
+# start = 1
+# ####################################
+
+############################################################################################
 x0 = matrix(as.numeric(rain_data[,,start]), ncol = 500, nrow = 500)
 x1 = matrix(as.numeric(rain_data[,,start+1]), ncol = 500, nrow = 500)
-k = 1
-
+k=1
+par(mar=c(0.7, 0.1, 0.7, 0.1), mfrow=c(2,3),
+    oma = c(0.2, 0.2, 0.2, 0.2))
 ### GET PARAMETERS BETWEEN x0 AND x1 ###
 
 taus = seq(-4, 2, by=0.1)
 out = llgrid(x1,x0,k,xbounds,ybounds,taus)
 L = out$Llmatrix
-# bestparams = colMeans(bayesinf(x1,x0,k,xbounds,ybounds,1000,taus))
 bestparams = which(L==max(L),arr.ind=TRUE)
 VX = out$vxs[bestparams[2]]
 VY = out$vys[bestparams[1]]
 variance = exp(taus[bestparams[3]])
-# VX = bestparams[1]
-# VY = bestparams[2]
-# variance = bestparams[3]
 
-no = 6
-escore = replicate(no,0)
-escorealt = replicate(no,0)
-n = replicate(no,0) #number of pixels on y=x line
-nalt = replicate(no,0) #number of pixels on y=x line
-pers = replicate(no,0)
+
+# Advect 'no' images into the future from x1 with different models and compares to actual images using performance indicators 
+
+no = 6 
+escore = replicate(no,0)  #deterministic numerical score
+escorealt = replicate(no,0)  #probabilistic numerical score
+n = replicate(no,0)   #deterministic visual score
+nalt = replicate(no,0)  #probabilistic visual score
+pers = replicate(no,0)  #persistence
+
+# advects image 0.25*i hours into the future and gets the performance indictors of each
 for (i in 1:no) {
   xnew = project(x1,k*i,VX,VY)
-  #matr_to_img(xnew[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
+  #matr_to_img(xnew[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]]) #to produce deterministic predictions
   xnewalt = project_w_noise(x1,k*i,VX,VY,variance)
-  #matr_to_img(xnewalt[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
+  #matr_to_img(xnewalt[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]]) #to produce IID probabilistic predictions
   xact = matrix(as.numeric(rain_data[,,start+1+i]), ncol = 500, nrow = 500)
+  matr_to_img(xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   
   escore[i] = err_score(xnew[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]],xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   escorealt[i] = err_score(xnewalt[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]],xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   pers[i] = err_score(x1[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]],xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   
-  # xnewcomp = log2(as.vector(xnew[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]]))
-  # xnewcomp[xnewcomp == "-Inf"] = -7
-  # xactcomp = log2(as.vector(xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]]))
-  # xactcomp[xactcomp == "-Inf"] = -7
   xnewcomp = mtisto(xnew[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   xactcomp = mtisto(xact[ybounds[1]:ybounds[2],xbounds[1]:xbounds[2]])
   num = replicate((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1),0)
@@ -50,7 +74,4 @@ for (i in 1:no) {
   numalt = replicate((ybounds[2]-ybounds[1]+1)*(xbounds[2]-xbounds[1]+1),0)
   numalt[xnewcompalt == xactcomp] <- 1
   nalt[i] = sum(numalt)
-  #plot(xnewcomp,xactcomp) 
-  #abline(coef = c(0,1))
-  #arrows(x0=x-sds[,1], y0=y, x1=x+sds[,1], y1=y, code=3, angle=90, length=0.001)
 }
