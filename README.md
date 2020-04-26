@@ -4,8 +4,12 @@ Radar Nowcasting
 
 2. Put unzipped folders: 'exampledata.zip','stormciara1.zip', inside a folder called 'data'.
 
-3. Source: 'initialization.R' to source model functions.
+3. Source: 'initialization.R' to source all model functions used.
 
-4. Run 'obsvspred2.R' for comparisons and data from 'Model Evaluation' section
+4. Run 'obsvspred2.R' for comparisons and data from 'Model Evaluation' section.
+
+5. 'Figurerepro.R' reproduces some other figures from the report.
+
+6. 'model_eval.R' produces the error maps for the examples used in the 'Model Evaluation' section.
 
 
