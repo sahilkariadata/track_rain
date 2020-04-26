@@ -51,11 +51,10 @@ axis(1, at = 1:(length(taus)), labels = taus,pos=0.45)
 axis(2, at = 1:(length(out$vxs)), labels = out$vxs,pos=0.45)
 title("", ylab = "Vx (km/h)", xlab = "tau",line=1.5)
 
-##### Figure 4.3 ######
+##### Figures 6.0-6.1 ######
 x0 = matrix(0,ncol=500,nrow=500)
 x1 = matrix(0,ncol=500,nrow=500)
 x0[200:205,200:205] = 4 #down is positive
-#x0[205,205] = 3.7
 x0[210:215,200:205] = 4
 x1[205:210,205:210] = 4
 
