@@ -5,7 +5,7 @@ library(rsvg)
 #################################### IMAGE-MATRIX CONVERSION ####################################
 
 # CONVERT IMAGES FROM A FUNCTION TO MATRICES AND STORES THEM IN AN ARRAY -> rain_data
-img_to_matr = function(directory) {
+img_to_matr <- function(directory) {
   image_list <- list.files(path = directory, pattern = "*.png", full.names = TRUE) #loads images
   l <- length(image_list)
   rain_data <- array(rep(NaN, 500*500*l), c(500, 500, l)) #initializing
@@ -75,7 +75,7 @@ cutoutdisp <- function(x,xbounds,ybounds) {
 }
 
 # CONVERTS A MATRIX TO A RADAR IMAGE USING SET INTERVALS AND RETURNS THE IMAGE
-mtisto = function(x) {
+mtisto <- function(x) {
   new = as.matrix(x)
   new[new == "NaN"] <- 0
   new[x<0.01]<- "#00000000"
