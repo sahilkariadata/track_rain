@@ -4,7 +4,7 @@ library(png)
 ############# Provided by Stefan Siegert #############
 
 # some specs
-metoffice.key <- 'a2ee40d3-c3fa-4d49-813a-ff0ab8c131db'
+metoffice.key <- '*insert key here*'
 json.file <- "data/json/radar.json"
 
 # get json meta file
