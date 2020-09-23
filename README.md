@@ -6,7 +6,7 @@ Radar Nowcasting
 
 3. Source: 'initialization.R' to source all model functions used.
 
-4. Run 'obsvspred2.R' for comparisons and data from 'Model Evaluation' section.
+4. Run 'obsvspred2.R' for comparisons and data from 'Model Evaluation' section of report.
 
 5. 'Figurerepro.R' reproduces some other figures from the report.
 
